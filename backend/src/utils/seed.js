@@ -108,24 +108,24 @@ const exercises = [
   { name: "Tricep Dips", muscleGroup: "Arms", equipment: ["Bench"], difficulty: "beginner" }
 ];
 
-async function seedDB() {
+export async function seedDB() {
   try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log("Connecting to seed database...");
+    console.log('🌱 Checking if database needs seeding...');
+    
+    // Check if meals already exist
+    const mealCount = await Meal.countDocuments();
+    if (mealCount > 0) {
+      console.log('✅ Database already has meals. Skipping seed.');
+      return;
+    }
 
+    console.log('🚀 Seeding database...');
     await Meal.deleteMany({});
-    await Meal.insertMany(meals);
-    console.log(`✅ Seeded ${meals.length} meals.`);
-
     await Exercise.deleteMany({});
+    await Meal.insertMany(meals);
     await Exercise.insertMany(exercises);
-    console.log(`✅ Seeded ${exercises.length} exercises.`);
-
-    process.exit();
+    console.log('✅ Auto-Seeded 80 meals and 10 exercises.');
   } catch (error) {
-    console.error("❌ Seeding Error:", error);
-    process.exit(1);
+    console.error('❌ Seeding Error:', error);
   }
 }
-
-seedDB();

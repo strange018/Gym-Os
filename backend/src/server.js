@@ -12,6 +12,7 @@ import coachRoutes from './routes/coachRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import scheduleRoutes from './routes/scheduleRoutes.js';
 import { initSocket, emitToUser } from './utils/socket.js';
+import { seedDB } from './utils/seed.js';
 
 dotenv.config();
 
@@ -43,7 +44,10 @@ const MONGO_URI = (process.env.MONGO_URI || 'mongodb://localhost:27017/ai-gym-os
   .replace(/^["']|["']$/g, '');
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('✅ MongoDB Connected'))
+  .then(async () => {
+    console.log('✅ MongoDB Connected');
+    await seedDB(); // Automatically seed if DB is empty
+  })
   .catch(err => console.error('❌ MongoDB Connection Error:', err));
 
 initSocket(io);
