@@ -37,7 +37,7 @@ app.use('/api/schedule', scheduleRoutes);
 
 
 const PORT = process.env.PORT || 5000;
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/ai-gym-os';
+const MONGO_URI = (process.env.MONGO_URI || 'mongodb://localhost:27017/ai-gym-os').trim().replace(/^["']|["']$/g, '');
 
 mongoose.connect(MONGO_URI)
   .then(() => console.log('✅ MongoDB Connected'))
