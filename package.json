@@ -1,0 +1,11 @@
+{
+  "name": "gym-os-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "install": "cd backend && npm install",
+    "start": "cd backend && npm start",
+    "build": "cd backend && npm install",
+    "seed": "cd backend && npm run seed"
+  }
+}
