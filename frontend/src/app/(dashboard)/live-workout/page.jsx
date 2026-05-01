@@ -1,12 +1,12 @@
 "use client";
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Camera, 
-  CameraOff, 
-  Play, 
-  Pause, 
-  RotateCcw, 
+import {
+  Camera,
+  CameraOff,
+  Play,
+  Pause,
+  RotateCcw,
   ChevronRight,
   Info,
   CheckCircle2,
@@ -50,7 +50,7 @@ export default function LiveWorkout() {
   const [targetReps, setTargetReps] = useState(10);
   const [targetSets, setTargetSets] = useState(3);
   const [isExerciseComplete, setIsExerciseComplete] = useState(false);
-  
+
   // Real-time Statistics
   const [sessionDuration, setSessionDuration] = useState(0);
   const [activeTime, setActiveTime] = useState(0);
@@ -70,23 +70,28 @@ export default function LiveWorkout() {
     reason: ""
   };
 
-  const stateRef = useRef({ 
-    targetReps, 
+  const stateRef = useRef({
+    targetReps,
     targetSets,
-    isResting, 
-    isExerciseComplete, 
-    currentExercise, 
-    currentSet 
+    isResting,
+    isExerciseComplete,
+    currentExercise,
+    currentSet
   });
 
+  // Accuracy Buffers
+  const angleHistory = useRef({});
+  const frameCounter = useRef(0);
+  const lastRepTime = useRef(0);
+
   useEffect(() => {
-    stateRef.current = { 
-      targetReps, 
+    stateRef.current = {
+      targetReps,
       targetSets,
-      isResting, 
-      isExerciseComplete, 
-      currentExercise, 
-      currentSet 
+      isResting,
+      isExerciseComplete,
+      currentExercise,
+      currentSet
     };
   }, [targetReps, targetSets, isResting, isExerciseComplete, currentExercise, currentSet]);
 
@@ -151,7 +156,7 @@ export default function LiveWorkout() {
       reps: targetReps,
       weight: 0 // In a real app, user would input this
     };
-    
+
     const updatedCompleted = [...completedExercises, finishedEx];
     setCompletedExercises(updatedCompleted);
 
@@ -190,12 +195,12 @@ export default function LiveWorkout() {
 
   const handleNextSet = () => {
     const { targetSets: tSets, currentSet: cS, isResting: iR } = stateRef.current;
-    
+
     if (iR) {
       skipRest();
       return;
     }
-    
+
     if (cS >= tSets) {
       setIsExerciseComplete(true);
       return;
@@ -259,14 +264,14 @@ export default function LiveWorkout() {
       setError(null);
       let stream = null;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ 
-          video: { 
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
             facingMode: "user"
-          } 
+          }
         });
-        
+
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           // Use explicit play() and handle potential promise rejection
@@ -275,7 +280,7 @@ export default function LiveWorkout() {
           } catch (playErr) {
             console.warn("Video play interrupted:", playErr);
           }
-          
+
           setIsCameraOn(true);
           setError(null);
         } else {
@@ -286,8 +291,8 @@ export default function LiveWorkout() {
         if (stream) {
           stream.getTracks().forEach(t => t.stop());
         }
-        const errorMsg = err.name === 'NotAllowedError' 
-          ? "Camera permission denied. Check your browser settings." 
+        const errorMsg = err.name === 'NotAllowedError'
+          ? "Camera permission denied. Check your browser settings."
           : "Could not connect to camera. Ensure no other app is using it.";
         setError(errorMsg);
       } finally {
@@ -323,12 +328,12 @@ export default function LiveWorkout() {
         });
 
         pose.setOptions({
-          modelComplexity: 1,
+          modelComplexity: 2, // Heavy model for maximum accuracy
           smoothLandmarks: true,
           enableSegmentation: false,
           smoothSegmentation: false,
-          minDetectionConfidence: 0.6,
-          minTrackingConfidence: 0.6
+          minDetectionConfidence: 0.75,
+          minTrackingConfidence: 0.75
         });
 
         pose.onResults(onResults);
@@ -352,19 +357,20 @@ export default function LiveWorkout() {
 
   const onResults = (results) => {
     if (!canvasRef.current || !videoRef.current) return;
-
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
     
+    try {
+      ctx.save();
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
     // Draw landmarks if detected
     if (results.poseLandmarks) {
       // High-accuracy drawing with glow effects
       ctx.strokeStyle = '#00f2fe';
       ctx.lineWidth = 3;
       ctx.lineJoin = 'round';
-      
+
       POSE_CONNECTIONS.forEach(([i, j]) => {
         const p1 = results.poseLandmarks[i];
         const p2 = results.poseLandmarks[j];
@@ -389,118 +395,149 @@ export default function LiveWorkout() {
         }
       });
 
-      // --- ADVANCED MULTI-EXERCISE TRACKING ENGINE ---
-      const landmarks = results.poseLandmarks;
-      const { 
-        targetReps: tReps, 
-        targetSets: tSets, 
-        isResting: iR, 
-        isExerciseComplete: iEC, 
-        currentExercise: cE, 
-        currentSet: cS 
-      } = stateRef.current;
+      } // End of if (results.poseLandmarks) block
       
+      // --- ADVANCED MULTI-EXERCISE TRACKING ENGINE ---
+      const {
+        targetReps: tReps,
+        targetSets: tSets,
+        isResting: iR,
+        isExerciseComplete: iEC,
+        currentExercise: cE,
+        currentSet: cS
+      } = stateRef.current;
+
       if (iR || iEC) {
         ctx.restore();
         return;
       }
 
+      const landmarks = results.poseLandmarks;
+      if (!landmarks || landmarks.length === 0) {
+        setTrackingConfidence(0);
+        ctx.restore();
+        return;
+      }
+
       const exName = cE.name.toLowerCase();
-      
-      // Helper to get angle with visibility check
-      const getAngle = (p1, p2, p3) => {
-        if (!p1 || !p2 || !p3 || p1.visibility < 0.6 || p2.visibility < 0.6 || p3.visibility < 0.6) return null;
-        return calculateAngle(p1, p2, p3);
+
+      // High-accuracy helper with temporal smoothing
+      const getSmoothedAngle = (p1, p2, p3, key) => {
+        if (!p1 || !p2 || !p3 || p1.visibility < 0.5 || p2.visibility < 0.5 || p3.visibility < 0.5) return null;
+        const angle = calculateAngle(p1, p2, p3);
+        
+        // Simple moving average (last 5 frames)
+        if (!angleHistory.current[key]) angleHistory.current[key] = [];
+        angleHistory.current[key].push(angle);
+        if (angleHistory.current[key].length > 5) angleHistory.current[key].shift();
+        
+        return angleHistory.current[key].reduce((a, b) => a + b, 0) / angleHistory.current[key].length;
+      };
+
+      const getDistance3D = (p1, p2) => {
+        return Math.sqrt(
+          Math.pow(p1.x - p2.x, 2) + 
+          Math.pow(p1.y - p2.y, 2) + 
+          Math.pow(p1.z - p2.z, 2)
+        );
       };
 
       let feedback = "";
 
-      // 1. Squat Logic (High Precision)
+      // 1. Squat Logic (High Precision Depth)
       if (exName.includes('squat')) {
-        const leftKnee = getAngle(landmarks[23], landmarks[25], landmarks[27]);
-        const rightKnee = getAngle(landmarks[24], landmarks[26], landmarks[28]);
-        
+        const leftKnee = getSmoothedAngle(landmarks[23], landmarks[25], landmarks[27], 'lKnee');
+        const rightKnee = getSmoothedAngle(landmarks[24], landmarks[26], landmarks[28], 'rKnee');
+        const hipShoulderKnee = getSmoothedAngle(landmarks[11], landmarks[23], landmarks[25], 'back');
+
         if (leftKnee && rightKnee) {
           const avgKneeAngle = (leftKnee + rightKnee) / 2;
-          
-          if (repState.current === 'up' && avgKneeAngle < 100) {
+          const isBackStraight = hipShoulderKnee > 145;
+
+          // Debug overlay
+          ctx.fillStyle = "#00f2fe";
+          ctx.font = "bold 14px Inter";
+          ctx.fillText(`Knee Angle: ${Math.round(avgKneeAngle)}°`, 30, 50);
+
+          if (repState.current === 'up' && avgKneeAngle < 110) {
             repState.current = 'down';
-            feedback = "Good depth! Now drive up.";
-          } else if (repState.current === 'down' && avgKneeAngle > 155) {
-            processRep("Explosive! Great squat.");
-          } else if (repState.current === 'up' && avgKneeAngle < 140) {
-            feedback = "Go deeper for full engagement.";
-          } else {
-            feedback = "Chest up, look forward.";
+            feedback = isBackStraight ? "Perfect depth! Push up." : "Good depth, but keep back straight.";
+          } else if (repState.current === 'down' && avgKneeAngle > 150) {
+            processRep("Explosive squat!");
+          } else if (repState.current === 'up' && avgKneeAngle < 135) {
+            feedback = "Go a bit lower...";
           }
         } else {
           feedback = "Adjust position to see full legs.";
         }
-      } 
-      // 2. Bicep Curl Logic
+      }
+      // 2. Bicep Curl Logic (Isolation Tracking)
       else if (exName.includes('curl')) {
-        const leftElbow = getAngle(landmarks[11], landmarks[13], landmarks[15]);
-        const rightElbow = getAngle(landmarks[12], landmarks[14], landmarks[16]);
+        const leftElbow = getSmoothedAngle(landmarks[11], landmarks[13], landmarks[15], 'lElbow');
+        const rightElbow = getSmoothedAngle(landmarks[12], landmarks[14], landmarks[16], 'rElbow');
         
         if (leftElbow && rightElbow) {
           const avgElbowAngle = (leftElbow + rightElbow) / 2;
+          
+          // Debug overlay
+          ctx.fillStyle = "#00f2fe";
+          ctx.font = "bold 14px Inter";
+          ctx.fillText(`Elbow Angle: ${Math.round(avgElbowAngle)}°`, 30, 50);
 
-          if (repState.current === 'up' && avgElbowAngle < 40) {
+          if (repState.current === 'up' && avgElbowAngle < 45) {
             repState.current = 'down';
-            feedback = "Perfect squeeze! Slow descent.";
-          } else if (repState.current === 'down' && avgElbowAngle > 150) {
-            processRep("Solid control. Keep it up!");
-          } else if (repState.current === 'up' && avgElbowAngle < 100) {
-            feedback = "Keep curling...";
-          } else {
-            feedback = "Don't swing your elbows.";
+            feedback = "Maximum contraction! Nice.";
+          } else if (repState.current === 'down' && avgElbowAngle > 145) {
+            processRep("Full range of motion!");
           }
         } else {
           feedback = "Center your arms in view.";
         }
       }
-      // 3. Push-up / Chest Press Logic
+      // 3. Push-up / Bench / Chest Logic (Depth & Core Stability)
       else if (exName.includes('push') || exName.includes('bench') || exName.includes('chest')) {
-        const leftElbow = getAngle(landmarks[11], landmarks[13], landmarks[15]);
-        const rightElbow = getAngle(landmarks[12], landmarks[14], landmarks[16]);
-        
+        const leftElbow = getSmoothedAngle(landmarks[11], landmarks[13], landmarks[15], 'lElbow');
+        const rightElbow = getSmoothedAngle(landmarks[12], landmarks[14], landmarks[16], 'rElbow');
+        const hipAlignment = getSmoothedAngle(landmarks[11], landmarks[23], landmarks[25], 'core');
+
         if (leftElbow && rightElbow) {
           const avgElbowAngle = (leftElbow + rightElbow) / 2;
+          const isCoreTight = hipAlignment > 155;
 
-          if (repState.current === 'up' && avgElbowAngle < 90) {
+          // Debug overlay
+          ctx.fillStyle = "#00f2fe";
+          ctx.font = "bold 14px Inter";
+          ctx.fillText(`Chest Angle: ${Math.round(avgElbowAngle)}°`, 30, 50);
+
+          if (repState.current === 'up' && avgElbowAngle < 95) {
             repState.current = 'down';
-            feedback = "Excellent depth! Push away.";
+            feedback = isCoreTight ? "Strong core! Power up." : "Drop hips a bit lower.";
           } else if (repState.current === 'down' && avgElbowAngle > 155) {
-            processRep("Powerfully done! Tight core.");
-          } else {
-            feedback = "Keep your body like a plank.";
+            processRep("Clean rep!");
           }
         }
       }
-      // 4. Overhead Press / Shoulder Press
+      // 4. Overhead Press (Vertical Pathing)
       else if (exName.includes('press')) {
         const leftWrist = landmarks[15];
         const rightWrist = landmarks[16];
         const leftShoulder = landmarks[11];
-        const rightShoulder = landmarks[12];
         
-        if (leftWrist.visibility > 0.6 && rightWrist.visibility > 0.6) {
-          const avgWristY = (leftWrist.y + rightWrist.y) / 2;
-          const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-          const relativePos = avgShoulderY - avgWristY; 
+        if (leftWrist.visibility > 0.75 && rightWrist.visibility > 0.75) {
+          const wristY = (leftWrist.y + rightWrist.y) / 2;
+          const shoulderY = leftShoulder.y;
+          const verticalDiff = shoulderY - wristY;
 
-          if (repState.current === 'up' && relativePos > 0.2) {
+          if (repState.current === 'up' && verticalDiff > 0.25) {
             repState.current = 'down';
-            feedback = "Locked out! Lower to shoulders.";
-          } else if (repState.current === 'down' && relativePos < 0.05) {
-            processRep("Great drive! Head through.");
-          } else {
-            feedback = "Push straight up.";
+            feedback = "Great reach! Control the descent.";
+          } else if (repState.current === 'down' && verticalDiff < 0.05) {
+            processRep("Power move!");
           }
         }
       }
       // 5. Default Logic (Vertical Motion)
-      else {
+      else if (landmarks[15] && landmarks[16] && landmarks[11] && landmarks[12]) {
         const avgWristY = (landmarks[15].y + landmarks[16].y) / 2;
         const avgShoulderY = (landmarks[11].y + landmarks[12].y) / 2;
         const relativePos = avgWristY - avgShoulderY;
@@ -522,10 +559,15 @@ export default function LiveWorkout() {
       setTrackingConfidence(Math.round((visiblePoints / 33) * 100));
 
       function processRep(successMsg) {
+        const now = Date.now();
+        // Prevent double counting (minimum 1 second between reps)
+        if (now - lastRepTime.current < 1000) return;
+        lastRepTime.current = now;
+
         repState.current = 'up';
         setCumulativeReps(prev => prev + 1);
-        setCaloriesBurned(prev => prev + 0.6); 
-        
+        setCaloriesBurned(prev => prev + 0.7); // Slightly adjusted for higher intensity accuracy
+
         setRepCount(prev => {
           const newVal = Math.min(tReps, prev + 1);
           emit('workout_progress', {
@@ -537,7 +579,7 @@ export default function LiveWorkout() {
             calories: caloriesBurned,
             timestamp: new Date()
           });
-          
+
           if (newVal >= tReps && !iR && !iEC) {
             setFormFeedback(cS >= tSets ? "Exercise Complete!" : "Set Complete! Rest up.");
             handleNextSet();
@@ -547,8 +589,16 @@ export default function LiveWorkout() {
           return newVal;
         });
       }
+      ctx.restore();
+    } catch (err) {
+      console.error("Tracking Engine Error:", err);
+      // Ensure we restore even on error if ctx was saved
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const ctx = canvas.getContext('2d');
+        try { ctx.restore(); } catch(e) {}
+      }
     }
-    ctx.restore();
   };
 
   // Camera Processing Loop
@@ -606,7 +656,7 @@ export default function LiveWorkout() {
               <p className="text-muted-foreground max-w-sm mb-8">
                 Position your device 6-8 feet away. AI will automatically track your form.
               </p>
-              
+
               {error && (
                 <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm flex items-center gap-2">
                   <AlertCircle size={16} />
@@ -614,7 +664,7 @@ export default function LiveWorkout() {
                 </div>
               )}
 
-              <button 
+              <button
                 onClick={toggleCamera}
                 disabled={isCamLoading}
                 className="bg-primary text-primary-foreground px-10 py-4 rounded-2xl font-bold flex items-center gap-3 hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,242,254,0.4)] disabled:opacity-50"
@@ -628,12 +678,12 @@ export default function LiveWorkout() {
               </button>
             </div>
           )}
-          
-          <video 
-            ref={videoRef} 
-            autoPlay 
-            playsInline 
-            className={cn("absolute inset-0 w-full h-full object-cover", !isCameraOn && "opacity-0 pointer-events-none")} 
+
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className={cn("absolute inset-0 w-full h-full object-cover", !isCameraOn && "opacity-0 pointer-events-none")}
           />
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
 
@@ -641,7 +691,7 @@ export default function LiveWorkout() {
           {isCameraOn && (
             <div className="absolute inset-0 p-8 flex flex-col justify-between">
               <div className="flex items-start justify-between">
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   className="glass p-4 rounded-2xl flex items-center gap-4 border-emerald-500/30"
@@ -654,20 +704,20 @@ export default function LiveWorkout() {
                     <p className="font-bold line-clamp-1">{currentExercise.name}</p>
                   </div>
                 </motion.div>
-                
-                  <div className="glass px-6 py-3 rounded-2xl text-center border-white/10">
-                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-50">AI Confidence</p>
-                    <p className={cn(
-                      "text-xl font-bold transition-colors",
-                      trackingConfidence > 80 ? "text-emerald-500" : 
+
+                <div className="glass px-6 py-3 rounded-2xl text-center border-white/10">
+                  <p className="text-[10px] uppercase font-bold tracking-widest opacity-50">AI Confidence</p>
+                  <p className={cn(
+                    "text-xl font-bold transition-colors",
+                    trackingConfidence > 80 ? "text-emerald-500" :
                       trackingConfidence > 50 ? "text-amber-500" : "text-rose-500"
-                    )}>{trackingConfidence}%</p>
-                  </div>
+                  )}>{trackingConfidence}%</p>
                 </div>
+              </div>
 
               <div className="flex flex-col items-center">
                 <AnimatePresence mode="wait">
-                  <motion.div 
+                  <motion.div
                     key={formFeedback}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -678,12 +728,12 @@ export default function LiveWorkout() {
                     {isResting ? `Resting: ${restTimeLeft}s` : formFeedback}
                   </motion.div>
                 </AnimatePresence>
-                
+
                 <div className="flex items-center gap-6">
                   <button className="w-16 h-16 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-all border-white/10">
                     <RotateCcw size={24} />
                   </button>
-                  <button 
+                  <button
                     onClick={() => setIsPaused(!isPaused)}
                     className={cn(
                       "w-20 h-20 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-all",
@@ -692,7 +742,7 @@ export default function LiveWorkout() {
                   >
                     {isPaused ? <Play size={32} fill="currentColor" /> : <Pause size={32} fill="currentColor" />}
                   </button>
-                  <button 
+                  <button
                     onClick={handleNextSet}
                     className={cn(
                       "w-16 h-16 rounded-full glass flex items-center justify-center transition-all border-white/10",
@@ -708,47 +758,47 @@ export default function LiveWorkout() {
         </div>
       </div>
 
-        {/* Right Sidebar - Dynamic Stats Panel */}
-        <div className="w-full lg:w-[400px] flex flex-col gap-6 h-[calc(100vh-180px)] overflow-y-auto pr-2 custom-scrollbar pb-10">
-          {/* Performance Pulse - REAL TIME STATS */}
-          <section className="glass p-6 rounded-[2.5rem] border border-primary/20 shadow-[0_0_40px_rgba(0,242,254,0.1)] relative overflow-hidden flex-shrink-0">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Sparkles className="text-primary animate-pulse" size={40} />
-            </div>
-            <h3 className="text-sm font-bold text-primary uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-              <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
-              Performance Pulse
-            </h3>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-                <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                  <Clock size={12} className="text-primary" /> Session
-                </div>
-                <div className="text-2xl font-black">{formatTime(sessionDuration)}</div>
-              </div>
-              <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-                <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                  <Timer size={12} className="text-emerald-500" /> Active
-                </div>
-                <div className="text-2xl font-black text-emerald-400">{formatTime(activeTime)}</div>
-              </div>
-              <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-                <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                  <RotateCcw size={12} className="text-amber-500" /> Total Reps
-                </div>
-                <div className="text-2xl font-black">{cumulativeReps}</div>
-              </div>
-              <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-                <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                  <Sparkles size={12} className="text-rose-500" /> Calories
-                </div>
-                <div className="text-2xl font-black text-rose-400">{Math.floor(caloriesBurned)}</div>
-              </div>
-            </div>
-          </section>
+      {/* Right Sidebar - Dynamic Stats Panel */}
+      <div className="w-full lg:w-[400px] flex flex-col gap-6 h-[calc(100vh-180px)] overflow-y-auto pr-2 custom-scrollbar pb-10">
+        {/* Performance Pulse - REAL TIME STATS */}
+        <section className="glass p-6 rounded-[2.5rem] border border-primary/20 shadow-[0_0_40px_rgba(0,242,254,0.1)] relative overflow-hidden flex-shrink-0">
+          <div className="absolute top-0 right-0 p-4 opacity-10">
+            <Sparkles className="text-primary animate-pulse" size={40} />
+          </div>
+          <h3 className="text-sm font-bold text-primary uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+            <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+            Performance Pulse
+          </h3>
 
-          <section className="glass p-8 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden flex-shrink-0">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
+              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
+                <Clock size={12} className="text-primary" /> Session
+              </div>
+              <div className="text-2xl font-black">{formatTime(sessionDuration)}</div>
+            </div>
+            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
+              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
+                <Timer size={12} className="text-emerald-500" /> Active
+              </div>
+              <div className="text-2xl font-black text-emerald-400">{formatTime(activeTime)}</div>
+            </div>
+            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
+              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
+                <RotateCcw size={12} className="text-amber-500" /> Total Reps
+              </div>
+              <div className="text-2xl font-black">{cumulativeReps}</div>
+            </div>
+            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
+              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
+                <Sparkles size={12} className="text-rose-500" /> Calories
+              </div>
+              <div className="text-2xl font-black text-rose-400">{Math.floor(caloriesBurned)}</div>
+            </div>
+          </div>
+        </section>
+
+        <section className="glass p-8 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden flex-shrink-0">
           <AnimatePresence mode="wait">
             {isExerciseComplete ? (
               <motion.div
@@ -765,7 +815,7 @@ export default function LiveWorkout() {
                 <p className="text-sm text-muted-foreground mb-8 max-w-[240px]">
                   You've crushed all {targetSets} sets of {currentExercise.name}.
                 </p>
-                <button 
+                <button
                   onClick={handleNextExercise}
                   className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,254,0.3)] hover:scale-105 transition-all"
                 >
@@ -791,7 +841,7 @@ export default function LiveWorkout() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Set {currentSet} of {targetSets}</span>
                     <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-                      <button 
+                      <button
                         onClick={() => setTargetSets(prev => Math.max(currentSet, prev - 1))}
                         className="p-1 hover:text-primary transition-colors"
                         title="Reduce Sets"
@@ -799,7 +849,7 @@ export default function LiveWorkout() {
                         <Minus size={14} />
                       </button>
                       <span className="text-primary font-bold min-w-[3rem] text-center">Sets: {targetSets}</span>
-                      <button 
+                      <button
                         onClick={() => setTargetSets(prev => prev + 1)}
                         className="p-1 hover:text-primary transition-colors"
                         title="Increase Sets"
@@ -812,7 +862,7 @@ export default function LiveWorkout() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Rep Progress</span>
                     <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-                      <button 
+                      <button
                         onClick={() => setTargetReps(prev => Math.max(1, prev - 1))}
                         className="p-1 hover:text-primary transition-colors"
                         title="Reduce Reps"
@@ -820,7 +870,7 @@ export default function LiveWorkout() {
                         <Minus size={14} />
                       </button>
                       <span className="text-primary font-bold min-w-[3rem] text-center">Goal: {targetReps}</span>
-                      <button 
+                      <button
                         onClick={() => setTargetReps(prev => prev + 1)}
                         className="p-1 hover:text-primary transition-colors"
                         title="Increase Reps"
@@ -831,13 +881,13 @@ export default function LiveWorkout() {
                   </div>
                 </div>
                 <div className="flex items-end gap-2 mb-8">
-                  <motion.span 
+                  <motion.span
                     key={repCount}
-                    animate={repCount >= targetReps ? { 
-                      scale: [1, 1.2, 1], 
-                      color: ['#ffffff', '#00f2fe', '#ffffff'] 
-                    } : { 
-                      scale: [1, 1.1, 1] 
+                    animate={repCount >= targetReps ? {
+                      scale: [1, 1.2, 1],
+                      color: ['#ffffff', '#00f2fe', '#ffffff']
+                    } : {
+                      scale: [1, 1.1, 1]
                     }}
                     className="text-8xl font-black leading-none"
                   >
@@ -845,12 +895,12 @@ export default function LiveWorkout() {
                   </motion.span>
                   <span className="text-2xl font-bold text-muted-foreground mb-3">/ {targetReps}</span>
                 </div>
-                
+
                 <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden mb-10">
-                  <motion.div 
+                  <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.min(100, (repCount / targetReps) * 100)}%` }}
-                    className="h-full bg-primary shadow-[0_0_15px_rgba(0,242,254,0.5)]" 
+                    className="h-full bg-primary shadow-[0_0_15px_rgba(0,242,254,0.5)]"
                   />
                 </div>
 
@@ -878,7 +928,7 @@ export default function LiveWorkout() {
                 {/* Presets */}
                 <div className="flex gap-2 mb-8">
                   {[30, 60, 90].map(time => (
-                    <button 
+                    <button
                       key={time}
                       onClick={() => {
                         setRestTimeLeft(time);
@@ -925,14 +975,14 @@ export default function LiveWorkout() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 w-full">
-                  <button 
+                  <button
                     onClick={() => adjustRestTime(15)}
                     className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
                   >
                     <span className="text-primary font-bold text-sm">+15s</span>
                     <span className="text-[9px] uppercase tracking-widest opacity-40">Add Time</span>
                   </button>
-                  <button 
+                  <button
                     onClick={skipRest}
                     className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-emerald-500"
                   >
@@ -970,7 +1020,7 @@ export default function LiveWorkout() {
               </div>
             )}
           </div>
-          <button 
+          <button
             onClick={() => router.push('/dashboard')}
             className="w-full mt-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-sm font-bold hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20 transition-all text-muted-foreground"
           >
@@ -978,7 +1028,7 @@ export default function LiveWorkout() {
           </button>
         </section>
       </div>
-      
+
       <style jsx global>{`
         .custom-scrollbar::-webkit-scrollbar {
           width: 6px;

@@ -20,6 +20,24 @@ import api from '@/lib/axios';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+const getExerciseAnimation = (name) => {
+  const animations = {
+    "Incline Bench Press": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHpiazR2Y3RndjJ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKpxC97u8lV9pT2/giphy.gif",
+    "Deadlifts": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHpiazR2Y3RndjJ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/l0HlS7eF0y9kL4U0w/giphy.gif",
+    "Squats": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHpiazR2Y3RndjJ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKpGv6T8j7jUv0A/giphy.gif",
+    "Pushups": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHpiazR2Y3RndjJ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKpGv6T8j7jUv0A/giphy.gif",
+    "Default": "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHpiazR2Y3RndjJ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKpGv6T8j7jUv0A/giphy.gif"
+  };
+  // Fallback to a generic gym animation if specific one not found
+  const normalized = name?.toLowerCase() || '';
+  if (normalized.includes('bench')) return animations["Incline Bench Press"];
+  if (normalized.includes('deadlift')) return animations["Deadlifts"];
+  if (normalized.includes('squat')) return animations["Squats"];
+  if (normalized.includes('pushup')) return animations["Pushups"];
+  
+  return "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHpiazR2Y3RndjJ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6bmZ6JmVwPXYxX2ludGVybmFsX2dpZl9ieV9pZCZjdD1n/3o7TKpGv6T8j7jUv0A/giphy.gif";
+};
+
 export default function Schedule() {
   const [schedule, setSchedule] = useState({});
   const [exercises, setExercises] = useState([]);
@@ -31,6 +49,7 @@ export default function Schedule() {
   const [countdown, setCountdown] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
+  const [isPlayingDemo, setIsPlayingDemo] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -172,6 +191,7 @@ export default function Schedule() {
     }
     setStartingDay(day);
     setCurrentExerciseIndex(0);
+    setIsPlayingDemo(false);
   };
 
   const startCountdown = () => {
@@ -466,41 +486,72 @@ export default function Schedule() {
                     <div className="aspect-video rounded-3xl bg-white/5 border border-white/10 relative overflow-hidden flex flex-col">
                       <AnimatePresence mode="wait">
                         <motion.div
-                          key={currentExerciseIndex}
-                          initial={{ opacity: 0, x: 20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -20 }}
+                          key={`${currentExerciseIndex}-${isPlayingDemo}`}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
                           className="absolute inset-0 flex flex-col"
                         >
-                          {/* Placeholder for tutorial animation */}
-                          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-purple-500/10 animate-pulse" />
-                          <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-8 text-center">
-                            <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center mb-4 border border-primary/30">
-                              <PlayCircle size={32} className="text-primary" />
+                          {/* Tutorial Animation / Placeholder */}
+                          {isPlayingDemo ? (
+                            <div className="absolute inset-0 bg-black">
+                              <img 
+                                src={getExerciseAnimation(schedule[startingDay]?.exercises[currentExerciseIndex]?.name)} 
+                                className="w-full h-full object-cover opacity-80" 
+                                alt="Exercise Tutorial" 
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
+                              <button 
+                                onClick={() => setIsPlayingDemo(false)}
+                                className="absolute top-4 right-4 p-2 bg-black/40 hover:bg-black/60 rounded-full backdrop-blur-md transition-all border border-white/10"
+                              >
+                                <X size={16} />
+                              </button>
                             </div>
-                            <h3 className="text-2xl font-bold text-white mb-2">
-                              {schedule[startingDay]?.exercises[currentExerciseIndex]?.name}
-                            </h3>
-                            <p className="text-sm text-muted-foreground max-w-sm">
-                              {schedule[startingDay]?.exercises[currentExerciseIndex]?.reason || "Watch the AI form correction tutorial."}
-                            </p>
-                          </div>
+                          ) : (
+                            <>
+                              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-purple-500/10 animate-pulse" />
+                              <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-8 text-center">
+                                <button 
+                                  onClick={() => setIsPlayingDemo(true)}
+                                  className="w-20 h-20 rounded-full bg-primary/20 flex items-center justify-center mb-6 border border-primary/30 hover:scale-110 hover:bg-primary/30 transition-all cursor-pointer group/play shadow-[0_0_30px_rgba(0,242,254,0.2)]"
+                                >
+                                  <PlayCircle size={40} className="text-primary group-hover/play:scale-110 transition-transform" />
+                                </button>
+                                <h3 className="text-2xl font-bold text-white mb-2">
+                                  {schedule[startingDay]?.exercises[currentExerciseIndex]?.name}
+                                </h3>
+                                <p className="text-sm text-muted-foreground max-w-sm mb-1">
+                                  {schedule[startingDay]?.exercises[currentExerciseIndex]?.reason || "Watch the AI form correction tutorial."}
+                                </p>
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-primary/60">Click play to preview form</span>
+                              </div>
+                            </>
+                          )}
                         </motion.div>
                       </AnimatePresence>
                     </div>
 
                     {/* Navigation Buttons */}
                     {schedule[startingDay]?.exercises?.length > 1 && (
-                      <div className="absolute top-1/2 -translate-y-1/2 -left-4 -right-4 flex justify-between pointer-events-none">
+                      <div className="absolute top-1/2 -translate-y-1/2 -left-4 -right-4 flex justify-between pointer-events-none z-20">
                         <button 
-                          onClick={() => setCurrentExerciseIndex(prev => Math.max(0, prev - 1))}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentExerciseIndex(prev => Math.max(0, prev - 1));
+                            setIsPlayingDemo(false);
+                          }}
                           disabled={currentExerciseIndex === 0}
                           className="w-10 h-10 rounded-full bg-glass border border-white/10 flex items-center justify-center pointer-events-auto hover:bg-primary hover:text-white transition-all disabled:opacity-0"
                         >
                           <ChevronRight className="rotate-180" size={20} />
                         </button>
                         <button 
-                          onClick={() => setCurrentExerciseIndex(prev => Math.min((schedule[startingDay]?.exercises?.length || 1) - 1, prev + 1))}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCurrentExerciseIndex(prev => Math.min((schedule[startingDay]?.exercises?.length || 1) - 1, prev + 1));
+                            setIsPlayingDemo(false);
+                          }}
                           disabled={currentExerciseIndex === (schedule[startingDay]?.exercises?.length || 1) - 1}
                           className="w-10 h-10 rounded-full bg-glass border border-white/10 flex items-center justify-center pointer-events-auto hover:bg-primary hover:text-white transition-all disabled:opacity-0"
                         >
