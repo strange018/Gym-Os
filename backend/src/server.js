@@ -121,4 +121,5 @@ app.get('/', (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
+  console.log('📡 Attempting to connect to MongoDB Atlas...');
 });
