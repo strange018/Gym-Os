@@ -59,6 +59,7 @@ export default function LiveWorkout() {
   const [caloriesBurned, setCaloriesBurned] = useState(0);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [completedExercises, setCompletedExercises] = useState([]);
+  const [trackingConfidence, setTrackingConfidence] = useState(0);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -325,9 +326,9 @@ export default function LiveWorkout() {
           modelComplexity: 1,
           smoothLandmarks: true,
           enableSegmentation: false,
-          smoothSegmentation: true,
-          minDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5
+          smoothSegmentation: false,
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.6
         });
 
         pose.onResults(onResults);
@@ -359,13 +360,15 @@ export default function LiveWorkout() {
     
     // Draw landmarks if detected
     if (results.poseLandmarks) {
-      // Draw connections
+      // High-accuracy drawing with glow effects
       ctx.strokeStyle = '#00f2fe';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
+      ctx.lineJoin = 'round';
+      
       POSE_CONNECTIONS.forEach(([i, j]) => {
         const p1 = results.poseLandmarks[i];
         const p2 = results.poseLandmarks[j];
-        if (p1 && p2 && p1.visibility > 0.5 && p2.visibility > 0.5) {
+        if (p1 && p2 && p1.visibility > 0.6 && p2.visibility > 0.6) {
           ctx.beginPath();
           ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
           ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
@@ -374,87 +377,154 @@ export default function LiveWorkout() {
       });
 
       // Draw points
-      ctx.fillStyle = '#ffffff';
       results.poseLandmarks.forEach((landmark) => {
-        if (landmark.visibility > 0.5) {
+        if (landmark.visibility > 0.6) {
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = '#00f2fe';
+          ctx.fillStyle = '#ffffff';
           ctx.beginPath();
-          ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 3, 0, 2 * Math.PI);
+          ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 4, 0, 2 * Math.PI);
           ctx.fill();
+          ctx.shadowBlur = 0;
         }
       });
 
-      // Simple Rep Counting Logic (Vertical motion of wrists relative to shoulders)
-      // Works for Squats, Overhead Press, Bench Press, etc.
-      // Get relevant landmarks
+      // --- ADVANCED MULTI-EXERCISE TRACKING ENGINE ---
       const landmarks = results.poseLandmarks;
-      const leftShoulder = landmarks[11];
-      const rightShoulder = landmarks[12];
-      const leftElbow = landmarks[13];
-      const rightElbow = landmarks[14];
-      const leftWrist = landmarks[15];
-      const rightWrist = landmarks[16];
-      const leftHip = landmarks[23];
-      const rightHip = landmarks[24];
-      const leftKnee = landmarks[25];
-      const rightKnee = landmarks[26];
-      const leftAnkle = landmarks[27];
-      const rightAnkle = landmarks[28];
+      const { 
+        targetReps: tReps, 
+        targetSets: tSets, 
+        isResting: iR, 
+        isExerciseComplete: iEC, 
+        currentExercise: cE, 
+        currentSet: cS 
+      } = stateRef.current;
+      
+      if (iR || iEC) {
+        ctx.restore();
+        return;
+      }
 
-      const { targetReps: tReps, targetSets: tSets, isResting: iR, isExerciseComplete: iEC, currentExercise: cE, currentSet: cS } = stateRef.current;
       const exName = cE.name.toLowerCase();
+      
+      // Helper to get angle with visibility check
+      const getAngle = (p1, p2, p3) => {
+        if (!p1 || !p2 || !p3 || p1.visibility < 0.6 || p2.visibility < 0.6 || p3.visibility < 0.6) return null;
+        return calculateAngle(p1, p2, p3);
+      };
 
-      // --- Exercise Specific Logic ---
-      let currentAngle = 0;
-      let thresholdDown = 0;
-      let thresholdUp = 0;
+      let feedback = "";
 
+      // 1. Squat Logic (High Precision)
       if (exName.includes('squat')) {
-        // Squat Logic: Knee angle
-        const leftKneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
-        const rightKneeAngle = calculateAngle(rightHip, rightKnee, rightAnkle);
-        currentAngle = (leftKneeAngle + rightKneeAngle) / 2;
-        thresholdDown = 90; // Deep squat
-        thresholdUp = 160;  // Standing
+        const leftKnee = getAngle(landmarks[23], landmarks[25], landmarks[27]);
+        const rightKnee = getAngle(landmarks[24], landmarks[26], landmarks[28]);
         
-        if (repState.current === 'up' && currentAngle < thresholdDown) {
-          repState.current = 'down';
-          setFormFeedback("Good depth! Now stand up.");
-        } else if (repState.current === 'down' && currentAngle > thresholdUp) {
-          processRep();
+        if (leftKnee && rightKnee) {
+          const avgKneeAngle = (leftKnee + rightKnee) / 2;
+          
+          if (repState.current === 'up' && avgKneeAngle < 100) {
+            repState.current = 'down';
+            feedback = "Good depth! Now drive up.";
+          } else if (repState.current === 'down' && avgKneeAngle > 155) {
+            processRep("Explosive! Great squat.");
+          } else if (repState.current === 'up' && avgKneeAngle < 140) {
+            feedback = "Go deeper for full engagement.";
+          } else {
+            feedback = "Chest up, look forward.";
+          }
+        } else {
+          feedback = "Adjust position to see full legs.";
         }
-      } else if (exName.includes('curl')) {
-        // Bicep Curl Logic: Elbow angle
-        const leftElbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
-        const rightElbowAngle = calculateAngle(rightShoulder, rightElbow, rightWrist);
-        currentAngle = (leftElbowAngle + rightElbowAngle) / 2;
-        thresholdDown = 45;  // Curled up
-        thresholdUp = 150;   // Arm extended
+      } 
+      // 2. Bicep Curl Logic
+      else if (exName.includes('curl')) {
+        const leftElbow = getAngle(landmarks[11], landmarks[13], landmarks[15]);
+        const rightElbow = getAngle(landmarks[12], landmarks[14], landmarks[16]);
         
-        if (repState.current === 'up' && currentAngle < thresholdDown) {
-          repState.current = 'down';
-          setFormFeedback("Great squeeze! Control the descent.");
-        } else if (repState.current === 'down' && currentAngle > thresholdUp) {
-          processRep();
+        if (leftElbow && rightElbow) {
+          const avgElbowAngle = (leftElbow + rightElbow) / 2;
+
+          if (repState.current === 'up' && avgElbowAngle < 40) {
+            repState.current = 'down';
+            feedback = "Perfect squeeze! Slow descent.";
+          } else if (repState.current === 'down' && avgElbowAngle > 150) {
+            processRep("Solid control. Keep it up!");
+          } else if (repState.current === 'up' && avgElbowAngle < 100) {
+            feedback = "Keep curling...";
+          } else {
+            feedback = "Don't swing your elbows.";
+          }
+        } else {
+          feedback = "Center your arms in view.";
         }
-      } else {
-        // Default Logic (Presses/Pushes): Wrist relative to shoulder
-        const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
-        const avgWristY = (leftWrist.y + rightWrist.y) / 2;
+      }
+      // 3. Push-up / Chest Press Logic
+      else if (exName.includes('push') || exName.includes('bench') || exName.includes('chest')) {
+        const leftElbow = getAngle(landmarks[11], landmarks[13], landmarks[15]);
+        const rightElbow = getAngle(landmarks[12], landmarks[14], landmarks[16]);
+        
+        if (leftElbow && rightElbow) {
+          const avgElbowAngle = (leftElbow + rightElbow) / 2;
+
+          if (repState.current === 'up' && avgElbowAngle < 90) {
+            repState.current = 'down';
+            feedback = "Excellent depth! Push away.";
+          } else if (repState.current === 'down' && avgElbowAngle > 155) {
+            processRep("Powerfully done! Tight core.");
+          } else {
+            feedback = "Keep your body like a plank.";
+          }
+        }
+      }
+      // 4. Overhead Press / Shoulder Press
+      else if (exName.includes('press')) {
+        const leftWrist = landmarks[15];
+        const rightWrist = landmarks[16];
+        const leftShoulder = landmarks[11];
+        const rightShoulder = landmarks[12];
+        
+        if (leftWrist.visibility > 0.6 && rightWrist.visibility > 0.6) {
+          const avgWristY = (leftWrist.y + rightWrist.y) / 2;
+          const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+          const relativePos = avgShoulderY - avgWristY; 
+
+          if (repState.current === 'up' && relativePos > 0.2) {
+            repState.current = 'down';
+            feedback = "Locked out! Lower to shoulders.";
+          } else if (repState.current === 'down' && relativePos < 0.05) {
+            processRep("Great drive! Head through.");
+          } else {
+            feedback = "Push straight up.";
+          }
+        }
+      }
+      // 5. Default Logic (Vertical Motion)
+      else {
+        const avgWristY = (landmarks[15].y + landmarks[16].y) / 2;
+        const avgShoulderY = (landmarks[11].y + landmarks[12].y) / 2;
         const relativePos = avgWristY - avgShoulderY;
 
         if (repState.current === 'up' && relativePos > 0.15) {
           repState.current = 'down';
-          setFormFeedback("Push it back up!");
         } else if (repState.current === 'down' && relativePos < 0.05) {
-          processRep();
+          processRep("Good movement!");
         }
+        feedback = "Focus on the movement.";
       }
 
-      function processRep() {
+      if (feedback && feedback !== formFeedback) {
+        setFormFeedback(feedback);
+      }
+
+      // Calculate overall visibility confidence
+      const visiblePoints = results.poseLandmarks.filter(p => p.visibility > 0.6).length;
+      setTrackingConfidence(Math.round((visiblePoints / 33) * 100));
+
+      function processRep(successMsg) {
         repState.current = 'up';
         setCumulativeReps(prev => prev + 1);
-        // Bonus calories for a completed rep
-        setCaloriesBurned(prev => prev + 0.5);
+        setCaloriesBurned(prev => prev + 0.6); 
         
         setRepCount(prev => {
           const newVal = Math.min(tReps, prev + 1);
@@ -469,14 +539,10 @@ export default function LiveWorkout() {
           });
           
           if (newVal >= tReps && !iR && !iEC) {
-            if (cS >= tSets) {
-              setFormFeedback("Exercise Complete!");
-            } else {
-              setFormFeedback("Goal Reached! Starting rest...");
-            }
+            setFormFeedback(cS >= tSets ? "Exercise Complete!" : "Set Complete! Rest up.");
             handleNextSet();
           } else {
-            setFormFeedback("Great rep! Keep it up.");
+            setFormFeedback(successMsg || "Great rep!");
           }
           return newVal;
         });
@@ -589,17 +655,15 @@ export default function LiveWorkout() {
                   </div>
                 </motion.div>
                 
-                <div className="flex gap-4">
                   <div className="glass px-6 py-3 rounded-2xl text-center border-white/10">
-                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-50">Heart Rate</p>
-                    <p className="text-xl font-bold">124 <span className="text-xs">BPM</span></p>
-                  </div>
-                  <div className="glass px-6 py-3 rounded-2xl text-center border-white/10">
-                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-50">Intensity</p>
-                    <p className="text-xl font-bold text-orange-500">High</p>
+                    <p className="text-[10px] uppercase font-bold tracking-widest opacity-50">AI Confidence</p>
+                    <p className={cn(
+                      "text-xl font-bold transition-colors",
+                      trackingConfidence > 80 ? "text-emerald-500" : 
+                      trackingConfidence > 50 ? "text-amber-500" : "text-rose-500"
+                    )}>{trackingConfidence}%</p>
                   </div>
                 </div>
-              </div>
 
               <div className="flex flex-col items-center">
                 <AnimatePresence mode="wait">
