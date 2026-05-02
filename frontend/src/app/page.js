@@ -13,17 +13,17 @@ const features = [
     icon: Camera,
     title: "Real-Time Pose Detection",
     desc: "Your webcam becomes a personal trainer. AI tracks every joint, counts every rep, and corrects your form instantly — with zero lag.",
-    color: "text-cyan-400",
-    bg: "bg-cyan-400/10",
-    border: "border-cyan-400/20",
+    color: "text-red-400",
+    bg: "bg-red-400/10",
+    border: "border-red-400/20",
   },
   {
     icon: Brain,
     title: "Adaptive AI Coach",
     desc: "Your workout adapts in real-time to your fatigue level, recovery, and progress. It's like having an Olympic coach in your pocket.",
-    color: "text-purple-400",
-    bg: "bg-purple-400/10",
-    border: "border-purple-400/20",
+    color: "text-amber-400",
+    bg: "bg-amber-400/10",
+    border: "border-amber-400/20",
   },
   {
     icon: TrendingUp,
@@ -37,25 +37,25 @@ const features = [
     icon: MessageSquare,
     title: "24/7 AI Chat Coach",
     desc: "Ask about nutrition, form, recovery, or programming. Your AI coach never sleeps, never judges, and always has an answer.",
-    color: "text-orange-400",
-    bg: "bg-orange-400/10",
-    border: "border-orange-400/20",
+    color: "text-red-400",
+    bg: "bg-red-400/10",
+    border: "border-red-400/20",
   },
   {
     icon: Dumbbell,
     title: "Smart Diet Planner",
     desc: "AI-optimized meal plans tuned to your budget, goals, and dietary preferences. Updated daily based on your training load.",
-    color: "text-pink-400",
-    bg: "bg-pink-400/10",
-    border: "border-pink-400/20",
+    color: "text-amber-400",
+    bg: "bg-amber-400/10",
+    border: "border-amber-400/20",
   },
   {
     icon: Activity,
     title: "Weekly Scheduler",
     desc: "A science-backed training split auto-generated for you. Edit, swap, and start any session with a single tap.",
-    color: "text-yellow-400",
-    bg: "bg-yellow-400/10",
-    border: "border-yellow-400/20",
+    color: "text-emerald-400",
+    bg: "bg-emerald-400/10",
+    border: "border-emerald-400/20",
   },
 ];
 
@@ -103,7 +103,7 @@ export default function Home() {
           </Link>
           <Link
             href="/register"
-            className="bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(245, 158, 11,0.3)] hover:shadow-[0_0_30px_rgba(245, 158, 11,0.5)] hover:scale-105 transition-all"
+            className="bg-primary text-primary-foreground px-5 py-2.5 rounded-xl text-sm font-bold shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.5)] hover:scale-105 transition-all"
           >
             Get Started
           </Link>
@@ -114,9 +114,9 @@ export default function Home() {
       <section ref={heroRef} className="relative min-h-screen flex flex-col items-center justify-center px-6 text-center pt-20 overflow-hidden">
         {/* Animated background blobs */}
         <motion.div style={{ y: heroY }} className="absolute inset-0 -z-10">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-primary/8 rounded-full blur-[180px]" />
-          <div className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-purple-500/8 rounded-full blur-[120px]" />
-          <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-cyan-500/8 rounded-full blur-[100px]" />
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[900px] h-[900px] bg-red-600/8 rounded-full blur-[180px]" />
+          <div className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-amber-500/8 rounded-full blur-[120px]" />
+          <div className="absolute bottom-1/4 right-1/4 w-[300px] h-[300px] bg-emerald-500/8 rounded-full blur-[100px]" />
         </motion.div>
 
         {/* Grid overlay */}
@@ -162,7 +162,7 @@ export default function Home() {
           >
             <Link
               href="/register"
-              className="group w-full sm:w-auto bg-primary text-primary-foreground px-10 py-4 rounded-2xl text-base font-bold shadow-[0_0_40px_rgba(245, 158, 11,0.35)] hover:shadow-[0_0_55px_rgba(245, 158, 11,0.55)] flex items-center justify-center gap-3 transition-all hover:scale-105"
+              className="group w-full sm:w-auto bg-primary text-primary-foreground px-10 py-4 rounded-2xl text-base font-bold shadow-[0_0_40px_rgba(239,68,68,0.35)] hover:shadow-[0_0_55px_rgba(239,68,68,0.55)] flex items-center justify-center gap-3 transition-all hover:scale-105"
             >
               Start for Free
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -269,7 +269,7 @@ export default function Home() {
           viewport={{ once: true }}
           className="max-w-4xl mx-auto glass rounded-[2.5rem] md:rounded-[3rem] border border-primary/20 p-10 md:p-16 text-center relative overflow-hidden"
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-purple-500/10 -z-0" />
+          <div className="absolute inset-0 bg-red-600/5 -z-0 rounded-[2.5rem] md:rounded-[3rem]" />
           <div className="relative z-10">
             <div className="flex items-center justify-center gap-1 mb-4">
               {[...Array(5)].map((_, i) => (
@@ -286,7 +286,7 @@ export default function Home() {
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
                 href="/register"
-                className="group w-full sm:w-auto bg-primary text-primary-foreground px-12 py-5 rounded-2xl text-lg font-black shadow-[0_0_50px_rgba(245, 158, 11,0.4)] hover:shadow-[0_0_70px_rgba(245, 158, 11,0.6)] flex items-center justify-center gap-3 transition-all hover:scale-105 uppercase tracking-wider"
+                className="group w-full sm:w-auto bg-primary text-primary-foreground px-12 py-5 rounded-2xl text-lg font-black shadow-[0_0_50px_rgba(239,68,68,0.4)] hover:shadow-[0_0_70px_rgba(239,68,68,0.6)] flex items-center justify-center gap-3 transition-all hover:scale-105 uppercase tracking-wider"
               >
                 Begin Your Journey
                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
