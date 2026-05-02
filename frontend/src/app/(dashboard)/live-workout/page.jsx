@@ -18,7 +18,8 @@ import {
   Loader2,
   Minus,
   Plus,
-  ArrowRight
+  ArrowRight,
+  ChevronDown
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
@@ -60,9 +61,11 @@ export default function LiveWorkout() {
   const [sessionStarted, setSessionStarted] = useState(false);
   const [completedExercises, setCompletedExercises] = useState([]);
   const [trackingConfidence, setTrackingConfidence] = useState(0);
+  const [isSidebarAtBottom, setIsSidebarAtBottom] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
+  const sidebarScrollRef = useRef(null);
   const currentExercise = workoutPlan[currentExerciseIndex] || {
     name: "Loading...",
     sets: 3,
@@ -98,6 +101,11 @@ export default function LiveWorkout() {
   const user = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('user')) : null;
   const { emit } = useSocket(user?._id);
 
+  const handleSidebarScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.target;
+    setIsSidebarAtBottom(scrollHeight - scrollTop - clientHeight < 30);
+  };
+
   useEffect(() => {
     const savedPlan = localStorage.getItem('current_workout_plan');
     if (savedPlan) {
@@ -106,9 +114,7 @@ export default function LiveWorkout() {
       if (plan[0]?.reps) {
         setTargetReps(parseInt(plan[0].reps) || 10);
       }
-      if (plan[0]?.sets) {
-        setTargetSets(parseInt(plan[0].sets) || 3);
-      }
+      setTargetSets(3); // Forced default to 3
     } else {
       router.push('/dashboard');
     }
@@ -117,7 +123,7 @@ export default function LiveWorkout() {
   useEffect(() => {
     if (workoutPlan[currentExerciseIndex]?.reps) {
       setTargetReps(parseInt(workoutPlan[currentExerciseIndex].reps) || 10);
-      setTargetSets(parseInt(workoutPlan[currentExerciseIndex].sets) || 3);
+      setTargetSets(3); // Forced default to 3
       setIsExerciseComplete(false);
     }
   }, [currentExerciseIndex]);
@@ -251,13 +257,21 @@ export default function LiveWorkout() {
   // Toggle Camera
   const toggleCamera = async () => {
     if (isCameraOn) {
-      const stream = videoRef.current.srcObject;
+      const stream = videoRef.current?.srcObject;
       if (stream) {
-        const tracks = stream.getTracks();
-        tracks.forEach(track => track.stop());
+        stream.getTracks().forEach(track => track.stop());
       }
-      videoRef.current.srcObject = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+
+      // Clear canvas to remove any leftover pose skeleton marks
+      if (canvasRef.current) {
+        const ctx = canvasRef.current.getContext('2d');
+        ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+      }
+
       setIsCameraOn(false);
+      setTrackingConfidence(0);
+      setFormFeedback("Align your body with the camera");
       setError(null);
     } else {
       setIsCamLoading(true);
@@ -359,44 +373,44 @@ export default function LiveWorkout() {
     if (!canvasRef.current || !videoRef.current) return;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    
+
     try {
       ctx.save();
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-    // Draw landmarks if detected
-    if (results.poseLandmarks) {
-      // High-accuracy drawing with glow effects
-      ctx.strokeStyle = '#00f2fe';
-      ctx.lineWidth = 3;
-      ctx.lineJoin = 'round';
+      // Draw landmarks if detected
+      if (results.poseLandmarks) {
+        // High-accuracy drawing with glow effects
+        ctx.strokeStyle = '#f59e0b';
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
 
-      POSE_CONNECTIONS.forEach(([i, j]) => {
-        const p1 = results.poseLandmarks[i];
-        const p2 = results.poseLandmarks[j];
-        if (p1 && p2 && p1.visibility > 0.6 && p2.visibility > 0.6) {
-          ctx.beginPath();
-          ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
-          ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
-          ctx.stroke();
-        }
-      });
+        POSE_CONNECTIONS.forEach(([i, j]) => {
+          const p1 = results.poseLandmarks[i];
+          const p2 = results.poseLandmarks[j];
+          if (p1 && p2 && p1.visibility > 0.6 && p2.visibility > 0.6) {
+            ctx.beginPath();
+            ctx.moveTo(p1.x * canvas.width, p1.y * canvas.height);
+            ctx.lineTo(p2.x * canvas.width, p2.y * canvas.height);
+            ctx.stroke();
+          }
+        });
 
-      // Draw points
-      results.poseLandmarks.forEach((landmark) => {
-        if (landmark.visibility > 0.6) {
-          ctx.shadowBlur = 8;
-          ctx.shadowColor = '#00f2fe';
-          ctx.fillStyle = '#ffffff';
-          ctx.beginPath();
-          ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 4, 0, 2 * Math.PI);
-          ctx.fill();
-          ctx.shadowBlur = 0;
-        }
-      });
+        // Draw points
+        results.poseLandmarks.forEach((landmark) => {
+          if (landmark.visibility > 0.6) {
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#f59e0b';
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(landmark.x * canvas.width, landmark.y * canvas.height, 4, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        });
 
       } // End of if (results.poseLandmarks) block
-      
+
       // --- ADVANCED MULTI-EXERCISE TRACKING ENGINE ---
       const {
         targetReps: tReps,
@@ -425,19 +439,19 @@ export default function LiveWorkout() {
       const getSmoothedAngle = (p1, p2, p3, key) => {
         if (!p1 || !p2 || !p3 || p1.visibility < 0.5 || p2.visibility < 0.5 || p3.visibility < 0.5) return null;
         const angle = calculateAngle(p1, p2, p3);
-        
+
         // Simple moving average (last 5 frames)
         if (!angleHistory.current[key]) angleHistory.current[key] = [];
         angleHistory.current[key].push(angle);
         if (angleHistory.current[key].length > 5) angleHistory.current[key].shift();
-        
+
         return angleHistory.current[key].reduce((a, b) => a + b, 0) / angleHistory.current[key].length;
       };
 
       const getDistance3D = (p1, p2) => {
         return Math.sqrt(
-          Math.pow(p1.x - p2.x, 2) + 
-          Math.pow(p1.y - p2.y, 2) + 
+          Math.pow(p1.x - p2.x, 2) +
+          Math.pow(p1.y - p2.y, 2) +
           Math.pow(p1.z - p2.z, 2)
         );
       };
@@ -455,7 +469,7 @@ export default function LiveWorkout() {
           const isBackStraight = hipShoulderKnee > 145;
 
           // Debug overlay
-          ctx.fillStyle = "#00f2fe";
+          ctx.fillStyle = "#f59e0b";
           ctx.font = "bold 14px Inter";
           ctx.fillText(`Knee Angle: ${Math.round(avgKneeAngle)}°`, 30, 50);
 
@@ -475,12 +489,12 @@ export default function LiveWorkout() {
       else if (exName.includes('curl')) {
         const leftElbow = getSmoothedAngle(landmarks[11], landmarks[13], landmarks[15], 'lElbow');
         const rightElbow = getSmoothedAngle(landmarks[12], landmarks[14], landmarks[16], 'rElbow');
-        
+
         if (leftElbow && rightElbow) {
           const avgElbowAngle = (leftElbow + rightElbow) / 2;
-          
+
           // Debug overlay
-          ctx.fillStyle = "#00f2fe";
+          ctx.fillStyle = "#f59e0b";
           ctx.font = "bold 14px Inter";
           ctx.fillText(`Elbow Angle: ${Math.round(avgElbowAngle)}°`, 30, 50);
 
@@ -505,7 +519,7 @@ export default function LiveWorkout() {
           const isCoreTight = hipAlignment > 155;
 
           // Debug overlay
-          ctx.fillStyle = "#00f2fe";
+          ctx.fillStyle = "#f59e0b";
           ctx.font = "bold 14px Inter";
           ctx.fillText(`Chest Angle: ${Math.round(avgElbowAngle)}°`, 30, 50);
 
@@ -522,7 +536,7 @@ export default function LiveWorkout() {
         const leftWrist = landmarks[15];
         const rightWrist = landmarks[16];
         const leftShoulder = landmarks[11];
-        
+
         if (leftWrist.visibility > 0.75 && rightWrist.visibility > 0.75) {
           const wristY = (leftWrist.y + rightWrist.y) / 2;
           const shoulderY = leftShoulder.y;
@@ -596,7 +610,7 @@ export default function LiveWorkout() {
       const canvas = canvasRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
-        try { ctx.restore(); } catch(e) {}
+        try { ctx.restore(); } catch (e) { }
       }
     }
   };
@@ -633,123 +647,121 @@ export default function LiveWorkout() {
   }, [isCameraOn]);
 
   return (
-    <div className="h-full flex flex-col lg:flex-row gap-8 pb-20">
-      {/* Left Column: Camera View */}
-      <div className="flex-1 flex flex-col gap-6">
-        <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="h-full flex flex-col lg:flex-row gap-6 pb-20">
+      {/* Left Column */}
+      <div className="flex-1 flex flex-col gap-4 px-2 md:px-0">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Live <span className="text-gradient">AI Training</span></h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <p className="text-muted-foreground text-xs font-medium uppercase tracking-widest">Active Session</p>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight">Live <span className="text-gradient">AI Training</span></h1>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Session Active</p>
             </div>
           </div>
-        </header>
+          {isCameraOn && (
+            <button
+              onClick={toggleCamera}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl font-bold text-xs bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white transition-all"
+            >
+              <CameraOff className="w-3.5 h-3.5" /> Stop Camera
+            </button>
+          )}
+        </div>
 
-        <div className="relative aspect-video bg-muted rounded-[2.5rem] border border-white/5 overflow-hidden group shadow-2xl">
+        {/* Camera */}
+        <div className="relative aspect-video bg-[#060d1a] rounded-2xl md:rounded-3xl border border-white/5 overflow-hidden shadow-[0_0_50px_rgba(0,0,0,0.5)]">
           {!isCameraOn && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12 z-20">
-              <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center mb-6 border border-white/5 shadow-inner">
-                <Camera size={40} className="text-muted-foreground animate-pulse" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-4 p-6">
+              {/* Animated ring */}
+              <div className="relative w-20 h-20 flex items-center justify-center">
+                <div className="absolute inset-0 rounded-full border border-primary/20 animate-ping" />
+                <div className="absolute inset-1 rounded-full border border-primary/30" />
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+                  <Camera className="text-primary/70 w-6 h-6" />
+                </div>
               </div>
-              <h3 className="text-2xl font-bold mb-2">AI Vision Ready</h3>
-              <p className="text-muted-foreground max-w-sm mb-8">
-                Position your device 6-8 feet away. AI will automatically track your form.
-              </p>
-
+              <div className="text-center">
+                <h3 className="text-lg font-bold mb-1">AI Vision Ready</h3>
+                <p className="text-xs text-muted-foreground max-w-xs">Stand 6–8 ft away. AI tracks your form in real-time.</p>
+              </div>
               {error && (
-                <div className="mb-6 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-500 text-sm flex items-center gap-2">
-                  <AlertCircle size={16} />
-                  {error}
+                <div className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {error}
                 </div>
               )}
-
               <button
                 onClick={toggleCamera}
                 disabled={isCamLoading}
-                className="bg-primary text-primary-foreground px-10 py-4 rounded-2xl font-bold flex items-center gap-3 hover:scale-105 transition-all shadow-[0_0_30px_rgba(0,242,254,0.4)] disabled:opacity-50"
+                className="bg-primary text-primary-foreground px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:scale-105 transition-all shadow-[0_0_30px_rgba(245, 158, 11,0.4)] disabled:opacity-50 text-sm"
               >
-                {isCamLoading ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : (
-                  <Camera size={20} />
-                )}
+                {isCamLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Camera className="w-4 h-4" />}
                 {isCamLoading ? "Initializing..." : "Begin Session"}
               </button>
             </div>
           )}
 
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
+          <video ref={videoRef} autoPlay playsInline
             className={cn("absolute inset-0 w-full h-full object-cover", !isCameraOn && "opacity-0 pointer-events-none")}
           />
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
 
-          {/* AI Overlay elements */}
+          {/* Live overlay */}
           {isCameraOn && (
-            <div className="absolute inset-0 p-8 flex flex-col justify-between">
-              <div className="flex items-start justify-between">
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="glass p-4 rounded-2xl flex items-center gap-4 border-emerald-500/30"
-                >
-                  <div className="w-12 h-12 bg-emerald-500 rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(16,185,129,0.4)]">
-                    <CheckCircle2 className="text-white" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] uppercase font-bold tracking-widest text-emerald-400">Current Task</p>
-                    <p className="font-bold line-clamp-1">{currentExercise.name}</p>
-                  </div>
-                </motion.div>
-
-                <div className="glass px-6 py-3 rounded-2xl text-center border-white/10">
-                  <p className="text-[10px] uppercase font-bold tracking-widest opacity-50">AI Confidence</p>
-                  <p className={cn(
-                    "text-xl font-bold transition-colors",
-                    trackingConfidence > 80 ? "text-emerald-500" :
-                      trackingConfidence > 50 ? "text-amber-500" : "text-rose-500"
+            <div className="absolute inset-0 flex flex-col justify-between p-3 md:p-5">
+              {/* Top HUD */}
+              <div className="flex justify-between items-start">
+                <div className="glass px-3 py-1.5 rounded-xl flex items-center gap-2 border-white/5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">LIVE</span>
+                  <span className="text-[10px] font-bold text-white/80 max-w-[140px] md:max-w-[240px] truncate">{currentExercise.name}</span>
+                </div>
+                <div className={cn(
+                  "glass px-2.5 py-1.5 rounded-xl text-center border",
+                  trackingConfidence > 80 ? "border-emerald-500/30" : trackingConfidence > 50 ? "border-amber-500/30" : "border-rose-500/30"
+                )}>
+                  <p className="text-[8px] uppercase tracking-widest text-muted-foreground font-bold">AI</p>
+                  <p className={cn("text-sm font-black leading-none",
+                    trackingConfidence > 80 ? "text-emerald-400" : trackingConfidence > 50 ? "text-amber-400" : "text-rose-400"
                   )}>{trackingConfidence}%</p>
                 </div>
               </div>
 
-              <div className="flex flex-col items-center">
+              {/* Bottom controls */}
+              <div className="flex flex-col items-center gap-3">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={formFeedback}
-                    initial={{ opacity: 0, y: 20 }}
+                    initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className="bg-black/60 backdrop-blur-md px-10 py-5 rounded-full border border-white/10 text-xl font-semibold flex items-center gap-3 mb-8 shadow-2xl"
+                    exit={{ opacity: 0, y: -8 }}
+                    className="bg-black/75 backdrop-blur-md px-5 py-2 rounded-full border border-white/10 text-xs md:text-sm font-semibold flex items-center gap-2 shadow-xl"
                   >
-                    <Sparkles className="text-primary w-6 h-6" />
-                    {isResting ? `Resting: ${restTimeLeft}s` : formFeedback}
+                    <Sparkles className="text-primary w-3.5 h-3.5 shrink-0" />
+                    {isResting ? `Rest: ${restTimeLeft}s` : formFeedback}
                   </motion.div>
                 </AnimatePresence>
-
-                <div className="flex items-center gap-6">
-                  <button className="w-16 h-16 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-all border-white/10">
-                    <RotateCcw size={24} />
+                <div className="flex items-center gap-3 md:gap-5">
+                  <button className="w-10 h-10 md:w-12 md:h-12 rounded-full glass flex items-center justify-center hover:bg-white/20 transition-all">
+                    <RotateCcw className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setIsPaused(!isPaused)}
                     className={cn(
-                      "w-20 h-20 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-all",
-                      isPaused ? "bg-emerald-500 text-white" : "bg-primary text-primary-foreground"
+                      "w-14 h-14 md:w-16 md:h-16 rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-all",
+                      isPaused ? "bg-emerald-500 text-white" : "bg-primary text-primary-foreground shadow-[0_0_25px_rgba(245, 158, 11,0.5)]"
                     )}
                   >
-                    {isPaused ? <Play size={32} fill="currentColor" /> : <Pause size={32} fill="currentColor" />}
+                    {isPaused ? <Play fill="currentColor" className="w-5 h-5 md:w-6 md:h-6" /> : <Pause fill="currentColor" className="w-5 h-5 md:w-6 md:h-6" />}
                   </button>
                   <button
                     onClick={handleNextSet}
                     className={cn(
-                      "w-16 h-16 rounded-full glass flex items-center justify-center transition-all border-white/10",
-                      isResting ? "text-emerald-500 border-emerald-500/30 bg-emerald-500/10" : "hover:bg-white/10"
+                      "w-10 h-10 md:w-12 md:h-12 rounded-full glass flex items-center justify-center transition-all",
+                      isResting ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" : "hover:bg-white/20"
                     )}
                   >
-                    {isResting ? <CheckCircle2 size={24} /> : <ChevronRight size={24} />}
+                    {isResting ? <CheckCircle2 className="w-4 h-4 md:w-5 md:h-5" /> : <ChevronRight className="w-4 h-4 md:w-5 md:h-5" />}
                   </button>
                 </div>
               </div>
@@ -758,159 +770,149 @@ export default function LiveWorkout() {
         </div>
       </div>
 
-      {/* Right Sidebar - Dynamic Stats Panel */}
-      <div className="w-full lg:w-[400px] flex flex-col gap-6 h-[calc(100vh-180px)] overflow-y-auto pr-2 custom-scrollbar pb-10">
-        {/* Performance Pulse - REAL TIME STATS */}
-        <section className="glass p-6 rounded-[2.5rem] border border-primary/20 shadow-[0_0_40px_rgba(0,242,254,0.1)] relative overflow-hidden flex-shrink-0">
-          <div className="absolute top-0 right-0 p-4 opacity-10">
-            <Sparkles className="text-primary animate-pulse" size={40} />
-          </div>
-          <h3 className="text-sm font-bold text-primary uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
-            <div className="w-2 h-2 bg-primary rounded-full animate-ping" />
+      {/* Right Sidebar Wrapper */}
+      <div className="relative w-full lg:w-[320px]">
+        <div 
+          ref={sidebarScrollRef}
+          className="w-full h-full flex flex-col gap-5 lg:h-[calc(100vh-180px)] lg:overflow-y-auto custom-scrollbar pb-10 px-2 md:px-0"
+          onScroll={handleSidebarScroll}
+        >
+          {/* Live Stats */}
+        <section className="glass p-4 rounded-xl border border-primary/20 shadow-[0_0_30px_rgba(245, 158, 11,0.08)]">
+          <h3 className="text-[10px] font-bold text-primary uppercase tracking-[0.2em] mb-3 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-primary rounded-full animate-ping inline-block" />
             Performance Pulse
           </h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                <Clock size={12} className="text-primary" /> Session
+          <div className="grid grid-cols-2 gap-2">
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5 flex items-center justify-between">
+              <div className="flex flex-col">
+                 <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Session</span>
+                 <p className="text-base md:text-lg font-black tabular-nums">{formatTime(sessionDuration)}</p>
               </div>
-              <div className="text-2xl font-black">{formatTime(sessionDuration)}</div>
+              <Clock className="text-primary w-4 h-4 opacity-80" />
             </div>
-            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                <Timer size={12} className="text-emerald-500" /> Active
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5 flex items-center justify-between">
+              <div className="flex flex-col">
+                 <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Active</span>
+                 <p className="text-base md:text-lg font-black text-emerald-400 tabular-nums">{formatTime(activeTime)}</p>
               </div>
-              <div className="text-2xl font-black text-emerald-400">{formatTime(activeTime)}</div>
+              <Timer className="text-emerald-500 w-4 h-4 opacity-80" />
             </div>
-            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                <RotateCcw size={12} className="text-amber-500" /> Total Reps
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5 flex items-center justify-between">
+              <div className="flex flex-col">
+                 <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Reps</span>
+                 <p className="text-base md:text-lg font-black tabular-nums">{cumulativeReps}</p>
               </div>
-              <div className="text-2xl font-black">{cumulativeReps}</div>
+              <RotateCcw className="text-amber-500 w-4 h-4 opacity-80" />
             </div>
-            <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-              <div className="flex items-center gap-2 text-muted-foreground text-[10px] uppercase font-bold mb-1">
-                <Sparkles size={12} className="text-rose-500" /> Calories
+            <div className="bg-white/5 rounded-xl p-3 border border-white/5 flex items-center justify-between">
+              <div className="flex flex-col">
+                 <span className="text-[8px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">Calories</span>
+                 <p className="text-base md:text-lg font-black text-rose-400 tabular-nums">{Math.floor(caloriesBurned)}</p>
               </div>
-              <div className="text-2xl font-black text-rose-400">{Math.floor(caloriesBurned)}</div>
+              <Sparkles className="text-rose-500 w-4 h-4 opacity-80" />
             </div>
           </div>
         </section>
 
-        <section className="glass p-8 rounded-[2.5rem] border border-white/5 shadow-xl relative overflow-hidden flex-shrink-0">
+        <section className="glass p-5 rounded-2xl border border-white/5 shadow-lg">
           <AnimatePresence mode="wait">
             {isExerciseComplete ? (
               <motion.div
                 key="exercise-complete"
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 1.1 }}
-                className="flex flex-col items-center py-6 text-center"
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-center py-6 text-center gap-4"
               >
-                <div className="w-20 h-20 bg-emerald-500/10 rounded-full flex items-center justify-center mb-6 border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.1)]">
-                  <CheckCircle2 className="text-emerald-500" size={40} />
+                <div className="w-16 h-16 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20">
+                  <CheckCircle2 className="text-emerald-500 w-8 h-8" />
                 </div>
-                <h2 className="text-3xl font-bold mb-2">Exercise Complete!</h2>
-                <p className="text-sm text-muted-foreground mb-8 max-w-[240px]">
-                  You've crushed all {targetSets} sets of {currentExercise.name}.
-                </p>
+                <div>
+                  <h2 className="text-2xl font-bold mb-1">Exercise Complete!</h2>
+                  <p className="text-xs text-muted-foreground">All {targetSets} sets of {currentExercise.name} done.</p>
+                </div>
                 <button
                   onClick={handleNextExercise}
-                  className="w-full py-4 rounded-2xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(0,242,254,0.3)] hover:scale-105 transition-all"
+                  className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-bold flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(245, 158, 11,0.3)] hover:scale-105 transition-all text-sm"
                 >
-                  Start Next Exercise
-                  <ArrowRight size={20} />
+                  Next Exercise <ArrowRight className="w-4 h-4" />
                 </button>
               </motion.div>
             ) : !isResting ? (
               <motion.div
                 key="exercise-info"
-                initial={{ opacity: 0, x: 20 }}
+                initial={{ opacity: 0, x: 10 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="space-y-5"
               >
-                <div className="mb-8">
-                  <h2 className="text-3xl font-bold text-gradient mb-1">{currentExercise.name}</h2>
-                  <p className="text-sm text-muted-foreground italic leading-relaxed">
-                    {currentExercise.reason}
-                  </p>
+                {/* Exercise Title */}
+                <div>
+                  <h2 className="text-xl font-bold text-gradient truncate">{currentExercise.name}</h2>
+                  <p className="text-xs text-muted-foreground italic mt-0.5 line-clamp-2">{currentExercise.reason}</p>
                 </div>
 
-                <div className="flex flex-col gap-3 mb-6">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Set {currentSet} of {targetSets}</span>
-                    <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-                      <button
-                        onClick={() => setTargetSets(prev => Math.max(currentSet, prev - 1))}
-                        className="p-1 hover:text-primary transition-colors"
-                        title="Reduce Sets"
-                      >
-                        <Minus size={14} />
+                {/* Set / Rep controls */}
+                <div className="flex gap-2">
+                  <div className="flex-1 bg-white/5 rounded-lg p-2 border border-white/5">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Sets</p>
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setTargetSets(prev => Math.max(currentSet, prev - 1))} className="w-5 h-5 rounded flex items-center justify-center bg-white/5 hover:bg-primary/20 hover:text-primary transition-all">
+                        <Minus className="w-2.5 h-2.5" />
                       </button>
-                      <span className="text-primary font-bold min-w-[3rem] text-center">Sets: {targetSets}</span>
-                      <button
-                        onClick={() => setTargetSets(prev => prev + 1)}
-                        className="p-1 hover:text-primary transition-colors"
-                        title="Increase Sets"
-                      >
-                        <Plus size={14} />
+                      <span className="font-black text-sm text-primary tabular-nums">{currentSet}<span className="text-muted-foreground font-medium text-xs">/{targetSets}</span></span>
+                      <button onClick={() => setTargetSets(prev => prev + 1)} className="w-5 h-5 rounded flex items-center justify-center bg-white/5 hover:bg-primary/20 hover:text-primary transition-all">
+                        <Plus className="w-2.5 h-2.5" />
                       </button>
                     </div>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">Rep Progress</span>
-                    <div className="flex items-center gap-3 bg-white/5 px-3 py-1.5 rounded-xl border border-white/10">
-                      <button
-                        onClick={() => setTargetReps(prev => Math.max(1, prev - 1))}
-                        className="p-1 hover:text-primary transition-colors"
-                        title="Reduce Reps"
-                      >
-                        <Minus size={14} />
+                  <div className="flex-1 bg-white/5 rounded-lg p-2 border border-white/5">
+                    <p className="text-[8px] font-bold uppercase tracking-widest text-muted-foreground mb-1">Reps Goal</p>
+                    <div className="flex items-center justify-between">
+                      <button onClick={() => setTargetReps(prev => Math.max(1, prev - 1))} className="w-5 h-5 rounded flex items-center justify-center bg-white/5 hover:bg-primary/20 hover:text-primary transition-all">
+                        <Minus className="w-2.5 h-2.5" />
                       </button>
-                      <span className="text-primary font-bold min-w-[3rem] text-center">Goal: {targetReps}</span>
-                      <button
-                        onClick={() => setTargetReps(prev => prev + 1)}
-                        className="p-1 hover:text-primary transition-colors"
-                        title="Increase Reps"
-                      >
-                        <Plus size={14} />
+                      <span className="font-black text-sm text-primary tabular-nums">{targetReps}</span>
+                      <button onClick={() => setTargetReps(prev => prev + 1)} className="w-5 h-5 rounded flex items-center justify-center bg-white/5 hover:bg-primary/20 hover:text-primary transition-all">
+                        <Plus className="w-2.5 h-2.5" />
                       </button>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-end gap-2 mb-8">
+
+                {/* Rep Counter */}
+                <div className="flex items-end gap-2">
                   <motion.span
                     key={repCount}
-                    animate={repCount >= targetReps ? {
-                      scale: [1, 1.2, 1],
-                      color: ['#ffffff', '#00f2fe', '#ffffff']
-                    } : {
-                      scale: [1, 1.1, 1]
-                    }}
-                    className="text-8xl font-black leading-none"
+                    animate={repCount >= targetReps
+                      ? { scale: [1, 1.15, 1], color: ['#ffffff', '#f59e0b', '#ffffff'] }
+                      : { scale: [1, 1.05, 1] }}
+                    className="text-6xl font-black leading-none tabular-nums"
                   >
                     {repCount}
                   </motion.span>
-                  <span className="text-2xl font-bold text-muted-foreground mb-3">/ {targetReps}</span>
+                  <span className="text-xl font-bold text-muted-foreground mb-2">/ {targetReps}</span>
                 </div>
 
-                <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden mb-10">
+                {/* Progress bar */}
+                <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
                   <motion.div
                     initial={{ width: 0 }}
                     animate={{ width: `${Math.min(100, (repCount / targetReps) * 100)}%` }}
-                    className="h-full bg-primary shadow-[0_0_15px_rgba(0,242,254,0.5)]"
+                    className="h-full bg-primary rounded-full shadow-[0_0_12px_rgba(245, 158, 11,0.5)]"
                   />
                 </div>
 
-                <div className="p-5 rounded-3xl bg-primary/5 border border-primary/20 flex items-start gap-3">
-                  <Info className="text-primary w-5 h-5 flex-shrink-0 mt-0.5" />
-                  <p className="text-xs leading-relaxed text-foreground/80">
-                    <span className="font-bold text-primary">AI Insight:</span> Keep your shoulders stable. You've hit {repCount} perfect reps so far.
+                {/* AI Tip */}
+                <div className="flex items-start gap-2.5 p-3 rounded-xl bg-primary/5 border border-primary/15">
+                  <Info className="text-primary w-4 h-4 shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-relaxed text-foreground/80">
+                    <span className="font-bold text-primary">AI: </span>Keep shoulders stable. {repCount} clean reps so far.
                   </p>
                 </div>
               </motion.div>
+
             ) : (
               <motion.div
                 key="rest-timer"
@@ -919,14 +921,14 @@ export default function LiveWorkout() {
                 exit={{ opacity: 0, scale: 1.1 }}
                 className="flex flex-col items-center py-4"
               >
-                <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6 border border-primary/20 shadow-[0_0_30px_rgba(0,242,254,0.1)]">
-                  <Timer className="text-primary" size={40} />
+                <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mb-3 border border-primary/20 shadow-[0_0_20px_rgba(245, 158, 11,0.1)]">
+                  <Timer className="text-primary w-6 h-6" />
                 </div>
-                <h2 className="text-2xl font-bold mb-1">Rest Period</h2>
-                <p className="text-sm text-muted-foreground mb-6">Take a breath before next set</p>
+                <h2 className="text-lg font-bold mb-1">Rest Period</h2>
+                <p className="text-[11px] text-muted-foreground mb-5">Take a breath before next set</p>
 
                 {/* Presets */}
-                <div className="flex gap-2 mb-8">
+                <div className="flex gap-2 mb-6">
                   {[30, 60, 90].map(time => (
                     <button
                       key={time}
@@ -935,7 +937,7 @@ export default function LiveWorkout() {
                         setTotalRestTime(time);
                       }}
                       className={cn(
-                        "px-4 py-2 rounded-xl text-[10px] font-bold border transition-all uppercase tracking-widest",
+                        "px-3 py-1.5 rounded-lg text-[9px] font-bold border transition-all uppercase tracking-widest",
                         totalRestTime === time ? "bg-primary text-primary-foreground border-primary" : "bg-white/5 border-white/10 text-muted-foreground hover:bg-white/10"
                       )}
                     >
@@ -944,50 +946,50 @@ export default function LiveWorkout() {
                   ))}
                 </div>
 
-                <div className="relative w-40 h-40 flex items-center justify-center mb-8">
-                  <svg className="w-full h-full transform -rotate-90">
+                <div className="relative w-28 h-28 flex items-center justify-center mb-6">
+                  <svg className="w-28 h-28 transform -rotate-90">
                     <circle
-                      cx="80"
-                      cy="80"
-                      r="74"
+                      cx="56"
+                      cy="56"
+                      r="50"
                       stroke="currentColor"
-                      strokeWidth="6"
+                      strokeWidth="5"
                       fill="transparent"
                       className="text-white/5"
                     />
                     <motion.circle
-                      cx="80"
-                      cy="80"
-                      r="74"
+                      cx="56"
+                      cy="56"
+                      r="50"
                       stroke="currentColor"
-                      strokeWidth="6"
+                      strokeWidth="5"
                       fill="transparent"
-                      strokeDasharray={465}
-                      animate={{ strokeDashoffset: 465 - (465 * restTimeLeft) / totalRestTime }}
+                      strokeDasharray={314}
+                      animate={{ strokeDashoffset: 314 - (314 * restTimeLeft) / totalRestTime }}
                       className="text-primary"
                       strokeLinecap="round"
                     />
                   </svg>
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-5xl font-black">{restTimeLeft}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Seconds</span>
+                    <span className="text-4xl font-black">{restTimeLeft}</span>
+                    <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">Secs</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 w-full">
+                <div className="grid grid-cols-2 gap-2.5 w-full">
                   <button
                     onClick={() => adjustRestTime(15)}
-                    className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
+                    className="flex flex-col items-center gap-0.5 p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all group"
                   >
-                    <span className="text-primary font-bold text-sm">+15s</span>
-                    <span className="text-[9px] uppercase tracking-widest opacity-40">Add Time</span>
+                    <span className="text-primary font-bold text-xs">+15s</span>
+                    <span className="text-[8px] uppercase tracking-widest opacity-40">Add Time</span>
                   </button>
                   <button
                     onClick={skipRest}
-                    className="flex flex-col items-center gap-1 p-3 rounded-2xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-emerald-500"
+                    className="flex flex-col items-center gap-0.5 p-2 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 transition-all text-emerald-500"
                   >
-                    <span className="font-bold text-sm">Skip</span>
-                    <span className="text-[9px] uppercase tracking-widest opacity-40">Start Set</span>
+                    <span className="font-bold text-xs">Skip</span>
+                    <span className="text-[8px] uppercase tracking-widest opacity-40">Start Set</span>
                   </button>
                 </div>
               </motion.div>
@@ -995,38 +997,61 @@ export default function LiveWorkout() {
           </AnimatePresence>
         </section>
 
-        <section className="flex-1 glass p-8 rounded-[2.5rem] border border-white/5 shadow-xl">
-          <h3 className="font-bold mb-6 flex items-center justify-between">
+        <section className="flex-1 glass p-5 rounded-2xl border border-white/5 shadow-lg">
+          <h3 className="font-bold mb-4 flex items-center justify-between text-sm">
             Upcoming Sequence
-            <span className="text-[10px] bg-white/5 px-2 py-1 rounded text-muted-foreground uppercase">
+            <span className="text-[9px] bg-white/5 px-2 py-1 rounded text-muted-foreground uppercase">
               {Math.max(0, workoutPlan.length - currentExerciseIndex - 1)} Left
             </span>
           </h3>
-          <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
             {workoutPlan.slice(currentExerciseIndex + 1).map((ex, i) => (
-              <div key={i} className="flex items-center gap-4 p-5 rounded-2xl bg-white/5 border border-white/5 opacity-60 hover:opacity-100 transition-opacity">
-                <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center font-bold text-xs">
+              <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5 opacity-70 hover:opacity-100 transition-opacity">
+                <div className="w-8 h-8 rounded-lg bg-black/20 flex items-center justify-center font-bold text-xs shrink-0 border border-white/5">
                   {currentExerciseIndex + i + 2}
                 </div>
-                <div className="flex-1">
-                  <h4 className="text-sm font-bold">{ex.name}</h4>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest">{ex.sets} Sets • {ex.reps} Reps</p>
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-bold truncate">{ex.name}</h4>
+                  <p className="text-[9px] text-muted-foreground uppercase tracking-widest mt-0.5">{ex.sets} Sets • {ex.reps} Reps</p>
                 </div>
               </div>
             ))}
             {workoutPlan.length - currentExerciseIndex - 1 === 0 && (
-              <div className="text-center py-8 opacity-40">
-                <p className="text-sm italic">Last exercise of the session!</p>
+              <div className="text-center py-6 opacity-40">
+                <p className="text-xs italic">Last exercise of the session!</p>
               </div>
             )}
           </div>
           <button
             onClick={() => router.push('/dashboard')}
-            className="w-full mt-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-sm font-bold hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20 transition-all text-muted-foreground"
+            className="w-full mt-5 py-3 rounded-xl bg-white/5 border border-white/10 text-xs font-bold hover:bg-red-500/10 hover:text-red-500 hover:border-red-500/20 transition-all text-muted-foreground"
           >
             End Session Early
           </button>
         </section>
+        </div>
+
+        {/* Global Sidebar Scroll Indicator */}
+        {!isSidebarAtBottom && (
+          <div className="hidden lg:flex absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background via-background/90 to-transparent pointer-events-none items-end justify-center pb-2 z-10 transition-opacity duration-300">
+            <button 
+              onClick={() => {
+                if (sidebarScrollRef.current) {
+                  sidebarScrollRef.current.scrollTo({
+                    top: sidebarScrollRef.current.scrollHeight,
+                    behavior: 'smooth'
+                  });
+                }
+              }}
+              className="flex flex-col items-center opacity-90 drop-shadow-[0_0_10px_rgba(0,0,0,0.8)] pointer-events-auto cursor-pointer hover:scale-105 transition-transform"
+            >
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary mb-1 shadow-black drop-shadow-md">Up Next</span>
+              <div className="w-6 h-6 rounded-full bg-primary/20 flex items-center justify-center border border-primary/40 backdrop-blur-sm animate-bounce shadow-[0_0_15px_rgba(245, 158, 11,0.4)] group-hover:bg-primary/30">
+                <ChevronDown className="w-4 h-4 text-primary" />
+              </div>
+            </button>
+          </div>
+        )}
       </div>
 
       <style jsx global>{`

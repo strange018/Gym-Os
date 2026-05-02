@@ -58,30 +58,30 @@ export default function Coach() {
   };
 
   return (
-    <div className="h-full flex flex-col max-w-4xl mx-auto">
+    <div className="h-full flex flex-col max-w-4xl mx-auto px-2 md:px-0">
       {/* Header */}
-      <header className="flex items-center justify-between mb-8">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/30 relative">
-            <Bot className="text-primary w-6 h-6" />
-            <div className="absolute -top-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-background" />
+      <header className="flex items-center justify-between mb-6 md:mb-8">
+        <div className="flex items-center gap-3 md:gap-4">
+          <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-primary/20 flex items-center justify-center border border-primary/30 relative">
+            <Bot className="text-primary w-5 h-5 md:w-6 md:h-6" />
+            <div className="absolute -top-1 -right-1 w-2.5 h-2.5 md:w-3 md:h-3 bg-emerald-500 rounded-full border-2 border-background" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">AI Fitness Coach</h1>
+            <h1 className="text-xl md:text-2xl font-bold">AI Fitness Coach</h1>
             <div className="flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
+              <span className="text-[10px] md:text-xs text-muted-foreground font-medium uppercase tracking-wider">
                 Online & Analyzing
               </span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-muted-foreground">
-            <Maximize2 size={20} />
+        <div className="flex items-center gap-1 md:gap-2">
+          <button className="p-2 md:p-2.5 rounded-lg md:rounded-xl hover:bg-white/5 transition-colors text-muted-foreground">
+            <Maximize2 className="w-4.5 h-4.5 md:w-5 md:h-5" />
           </button>
-          <button className="p-2.5 rounded-xl hover:bg-white/5 transition-colors text-muted-foreground">
-            <MoreVertical size={20} />
+          <button className="p-2 md:p-2.5 rounded-lg md:rounded-xl hover:bg-white/5 transition-colors text-muted-foreground">
+            <MoreVertical className="w-4.5 h-4.5 md:w-5 md:h-5" />
           </button>
         </div>
       </header>
@@ -89,7 +89,7 @@ export default function Coach() {
       {/* Chat Area */}
       <div
         ref={scrollRef}
-        className="flex-1 glass rounded-[2.5rem] border border-white/5 p-6 overflow-y-auto mb-6 space-y-6 scrollbar-hide"
+        className="flex-1 glass rounded-[1.5rem] md:rounded-[2.5rem] border border-white/5 p-4 md:p-6 overflow-y-auto mb-4 md:mb-6 space-y-4 md:space-y-6 scrollbar-hide"
       >
         <AnimatePresence initial={false}>
           {messages.map((msg, i) => (
@@ -98,20 +98,20 @@ export default function Coach() {
               initial={{ opacity: 0, y: 10, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               className={cn(
-                "flex items-start gap-4 max-w-[85%]",
+                "flex items-start gap-3 md:gap-4 max-w-[90%] md:max-w-[85%]",
                 msg.role === 'user' ? "ml-auto flex-row-reverse text-right" : ""
               )}
             >
               <div className={cn(
-                "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0",
+                "w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center flex-shrink-0",
                 msg.role === 'user'
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted border border-white/10"
               )}>
-                {msg.role === 'user' ? <User size={20} /> : <Bot size={20} />}
+                {msg.role === 'user' ? <User className="w-4 h-4 md:w-5 md:h-5" /> : <Bot className="w-4 h-4 md:w-5 md:h-5" />}
               </div>
               <div className={cn(
-                "p-4 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap",
+                "p-3 md:p-4 rounded-xl md:rounded-2xl text-xs md:text-sm leading-relaxed whitespace-pre-wrap",
                 msg.role === 'user'
                   ? "bg-primary text-primary-foreground font-medium rounded-tr-none"
                   : "bg-white/5 border border-white/5 text-foreground rounded-tl-none"
@@ -126,14 +126,14 @@ export default function Coach() {
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex items-start gap-4 max-w-[85%]"
+              className="flex items-start gap-3 md:gap-4 max-w-[90%] md:max-w-[85%]"
             >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-muted border border-white/10">
-                <Bot size={20} />
+              <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center bg-muted border border-white/10">
+                <Bot className="w-4 h-4 md:w-5 md:h-5" />
               </div>
-              <div className="p-4 rounded-2xl bg-white/5 border border-white/5 flex items-center gap-2">
-                <Loader2 size={16} className="animate-spin text-primary" />
-                <span className="text-sm text-muted-foreground">Thinking...</span>
+              <div className="p-3 md:p-4 rounded-xl md:rounded-2xl bg-white/5 border border-white/5 flex items-center gap-2">
+                <Loader2 className="animate-spin text-primary w-3.5 h-3.5 md:w-4 md:h-4" />
+                <span className="text-xs md:text-sm text-muted-foreground">Thinking...</span>
               </div>
             </motion.div>
           )}
@@ -162,7 +162,7 @@ export default function Coach() {
             <button
               onClick={handleSend}
               disabled={isLoading || !input.trim()}
-              className="p-3 bg-primary text-primary-foreground rounded-2xl hover:scale-105 transition-all shadow-[0_0_15px_rgba(0,242,254,0.3)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+              className="p-3 bg-primary text-primary-foreground rounded-2xl hover:scale-105 transition-all shadow-[0_0_15px_rgba(245, 158, 11,0.3)] disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               <Send size={20} />
             </button>

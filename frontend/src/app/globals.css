@@ -2,29 +2,29 @@
 
 @layer base {
   :root {
-    --background: 224 71% 4%;
-    --foreground: 213 31% 91%;
+    --background: 0 0% 4%; /* True Matte Black */
+    --foreground: 0 0% 98%; /* Clean White Text */
 
-    --muted: 223 47% 11%;
-    --muted-foreground: 215.4 16.3% 56.9%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 65%;
 
-    --popover: 224 71% 4%;
-    --popover-foreground: 213 31% 91%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
 
-    --card: 224 71% 4%;
-    --card-foreground: 213 31% 91%;
+    --card: 0 0% 8%; /* Dark Gray Cards */
+    --card-foreground: 0 0% 98%;
 
-    --border: 216 34% 17%;
-    --input: 216 34% 17%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
 
-    --primary: 199 89% 48%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 0 84% 60%; /* Vibrant Red */
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 222.2 47.4% 11.2%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 45 93% 47%; /* Golden Yellow */
+    --secondary-foreground: 0 0% 10%;
 
-    --accent: 216 34% 17%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 142 71% 45%; /* Vibrant Green */
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
@@ -57,30 +57,98 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
-  font-family: 'Inter', sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
+  /* Prevent horizontal scroll on Windows */
+  width: 100vw;
+  position: relative;
+}
+
+/* Optimization for Windows Rendering */
+* {
+  -webkit-tap-highlight-color: transparent;
+  outline-color: hsl(var(--primary) / 0.5);
+}
+
+input:focus, button:focus-visible {
+  outline: 2px solid hsl(var(--primary) / 0.5);
+  outline-offset: 2px;
+}
+
+/* Premium Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 158, 11, 0.2);
+  background-clip: content-box;
+}
+
+::selection {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
 }
 
 .glass {
-  background: rgba(15, 23, 42, 0.6);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.4);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  /* Fix jagged edges in Chrome/Edge on Windows */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+.glass-dark {
+  background: rgba(2, 6, 23, 0.7);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #f59e0b; /* Solid Golden Yellow */
+  text-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+}
+
+@layer utilities {
+  .bg-primary {
+    background-color: #ef4444 !important; /* Pure Vibrant Red */
+    color: white !important;
+    border: none !important;
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.4) !important;
+  }
 }
 
 .card-hover {
-  transition: all 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  will-change: transform, box-shadow;
+  transform: translateZ(0);
 }
 
 .card-hover:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 10px 30px -10px rgba(0, 242, 254, 0.3);
-  border-color: rgba(0, 242, 254, 0.5);
+  transform: translateY(-8px) scale(1.03);
+  box-shadow: 0 20px 40px -10px rgba(239, 68, 68, 0.3), 0 0 20px rgba(245, 158, 11, 0.15);
+  border-color: rgba(239, 68, 68, 0.4);
 }
 
 @keyframes float {
@@ -99,4 +167,17 @@ body {
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Optimization: Smooth button rendering */
+button, a {
+  -webkit-font-smoothing: subpixel-antialiased;
+  transform: translateZ(0);
+}
+
+/* Optimization: Content visibility for performance */
+section, .glass {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 500px;
 }

@@ -10,8 +10,8 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="h-full">
-      <body className={`${inter.className} h-full antialiased bg-background text-foreground`}>
+    <html lang="en" className="h-full scroll-smooth">
+      <body className={`${inter.className} h-full antialiased bg-background text-foreground selection:bg-primary/20 selection:text-primary`}>
         {children}
       </body>
     </html>

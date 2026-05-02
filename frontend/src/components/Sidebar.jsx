@@ -10,7 +10,8 @@ import {
   Settings, 
   Zap,
   ChevronRight,
-  CalendarDays
+  CalendarDays,
+  X
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -24,25 +25,35 @@ const menuItems = [
   { icon: CalendarDays, label: 'Schedule', href: '/schedule' },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }) {
   const pathname = usePathname();
 
   return (
-    <div className="w-64 glass border-r border-border h-full flex flex-col">
+    <div className="w-64 glass border-r border-border h-full flex flex-col relative">
+      {/* Mobile Close Button */}
+      {onClose && (
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 p-2 rounded-xl bg-white/5 border border-white/10 lg:hidden text-muted-foreground hover:text-foreground"
+        >
+          <X size={20} />
+        </button>
+      )}
+
       <div className="p-6 mb-8">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(0,242,254,0.5)]">
+          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_20px_rgba(245, 158, 11,0.5)]">
             <Zap className="text-primary-foreground w-6 h-6" />
           </div>
           <span className="text-xl font-bold tracking-tight text-gradient">AI GYM OS</span>
         </div>
       </div>
 
-      <nav className="flex-1 px-4 space-y-2">
+      <nav className="flex-1 px-4 space-y-2 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = pathname === item.href;
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={item.href} href={item.href} onClick={onClose}>
               <motion.div
                 whileHover={{ x: 5 }}
                 whileTap={{ scale: 0.95 }}
@@ -72,8 +83,8 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="p-6 mt-auto">
-        <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-white/10">
+      <div className="p-6 mt-auto border-t border-white/5">
+        <div className="p-4 rounded-2xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-white/10 hidden md:block">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-xs font-semibold text-primary uppercase tracking-wider">Premium Member</span>
@@ -86,10 +97,10 @@ export default function Sidebar() {
         <div className="mt-6 flex items-center gap-3 px-2">
           <div className="w-10 h-10 rounded-full bg-muted border border-border" />
           <div className="flex-1">
-            <p className="text-sm font-semibold">User Name</p>
+            <p className="text-sm font-semibold truncate">User Name</p>
             <p className="text-xs text-muted-foreground">Level 12 • Warrior</p>
           </div>
-          <Settings size={18} className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
+          <Settings size={18} className="text-muted-foreground cursor-pointer hover:text-foreground transition-colors shrink-0" />
         </div>
       </div>
     </div>

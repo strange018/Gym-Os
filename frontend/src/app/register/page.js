@@ -45,7 +45,7 @@ export default function Register() {
       >
         <div className="text-center mb-10">
           <Link href="/" className="inline-flex items-center gap-2 mb-8">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(0,242,254,0.5)]">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-[0_0_15px_rgba(245, 158, 11,0.5)]">
               <Zap className="text-primary-foreground w-6 h-6" />
             </div>
             <span className="text-2xl font-bold tracking-tight text-gradient">AI GYM OS</span>
@@ -110,7 +110,7 @@ export default function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold shadow-[0_0_20px_rgba(0,242,254,0.3)] hover:shadow-[0_0_30px_rgba(0,242,254,0.5)] disabled:opacity-70 flex items-center justify-center gap-2 transition-all"
+              className="w-full bg-primary text-primary-foreground py-4 rounded-xl font-bold shadow-[0_0_20px_rgba(245, 158, 11,0.3)] hover:shadow-[0_0_30px_rgba(245, 158, 11,0.5)] disabled:opacity-70 flex items-center justify-center gap-2 transition-all"
             >
               {loading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
